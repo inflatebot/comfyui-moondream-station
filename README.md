@@ -12,7 +12,7 @@ What has been tested and does NOT work:
 - *Inline unloading;* the nodes don't properly integrate with ComfyUI's memory management and will NOT be unloaded as intended right now
 
 What has not been tested:
-- Loading quantized checkpoints
+- Loading quantized checkpoints (I see no reason why this Shouldn't work but Transformers is full of surprises as it turns out)
 
 What almost works:
 - Segment (currently indistinguishable from Detect, doesn't work at all with multi_object=False)
