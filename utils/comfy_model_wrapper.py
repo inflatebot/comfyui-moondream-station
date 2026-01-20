@@ -17,8 +17,9 @@ class MoondreamModelWrapper:
         self.offload_device = offload_device
         self.parent = None
         self._size = None
-        self._current_device = load_device
-        self._loaded_memory = self.model_size()
+        # Model starts on CPU, ComfyUI will call partially_load() to move to GPU
+        self._current_device = offload_device
+        self._loaded_memory = 0
 
     def model_size(self) -> int:
         """Return total bytes of all model parameters."""
@@ -71,7 +72,7 @@ class MoondreamModelWrapper:
         self._loaded_memory = 0
         return freed
 
-    def detach(self, unpatch_weights=True):
+    def detach(self, unpatch_all=True):
         """Full cleanup - move model to offload device."""
         self.model.to(self.offload_device)
         self._current_device = self.offload_device

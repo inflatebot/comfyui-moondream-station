@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Optional
 
 
@@ -7,37 +7,13 @@ class MoondreamClientWrapper:
     """Wrapper around moondream client/model with metadata."""
 
     client: Any
-    comfy_model: Any = None  # MoondreamModelWrapper for ComfyUI integration
     has_api_key: bool = False
     is_local: bool = False
     device: Optional[str] = None
-    _unloaded: bool = field(default=False, repr=False)
 
     def supports_segment(self) -> bool:
         """Check if this client supports segmentation (cloud API only)."""
         return self.has_api_key
-
-    def unload(self) -> None:
-        """Mark the model as unloaded.
-
-        Note: Actual memory management is handled by ComfyUI's model management
-        system. This method exists for API compatibility.
-        """
-        if self._unloaded:
-            return
-
-        if not self.is_local:
-            # Nothing to unload for API clients
-            self._unloaded = True
-            return
-
-        # ComfyUI handles actual unloading via the comfy_model wrapper
-        # Just mark as unloaded for tracking purposes
-        self._unloaded = True
-
-    def is_loaded(self) -> bool:
-        """Check if the model is still loaded."""
-        return not self._unloaded
 
     def caption(self, image, length: str = "normal", settings: Optional[dict] = None):
         """Generate a caption for the image."""

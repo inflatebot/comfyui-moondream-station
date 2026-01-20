@@ -1,10 +1,6 @@
 import torch
-import comfy.model_management
+import comfy.model_management as mm
 from ..utils.client_wrapper import MoondreamClientWrapper
-from ..utils.comfy_model_wrapper import MoondreamModelWrapper
-
-# Cache for loaded local models
-_model_cache: dict[str, MoondreamClientWrapper] = {}
 
 
 class MoondreamClient:
@@ -85,7 +81,6 @@ class MoondreamLoader:
                     },
                 ),
                 "load_device": (["gpu", "cpu"],),
-                "keep_loaded": ("BOOLEAN", {"default": True}),
             },
         }
 
@@ -94,23 +89,8 @@ class MoondreamLoader:
     FUNCTION = "load_model"
     CATEGORY = "Moondream"
 
-    def load_model(
-        self, repo: str, load_device: str = "gpu", keep_loaded: bool = True
-    ):
+    def load_model(self, repo: str, load_device: str = "gpu"):
         from transformers import AutoConfig, AutoModelForCausalLM
-
-        cache_key = f"{repo}_{load_device}"
-
-        # Always check cache first - return cached model if available
-        if cache_key in _model_cache:
-            cached = _model_cache[cache_key]
-            if not keep_loaded:
-                # Remove from cache so it won't be kept after this use
-                del _model_cache[cache_key]
-            return (cached,)
-
-        # Clear cache - ComfyUI will handle actual unloading
-        _model_cache.clear()
 
         # Validate model architecture
         config = AutoConfig.from_pretrained(repo, trust_remote_code=True)
@@ -125,45 +105,36 @@ class MoondreamLoader:
                 f"Architectures: {architectures}"
             )
 
-        # Determine device
+        # Determine target device
         if load_device == "gpu":
             if torch.cuda.is_available():
-                device = "cuda"
+                device = mm.get_torch_device()
             elif torch.backends.mps.is_available():
-                device = "mps"
+                device = torch.device("mps")
             else:
-                device = "cpu"
+                device = torch.device("cpu")
         else:
-            device = "cpu"
+            device = torch.device("cpu")
 
-        # Load model - Moondream handles tokenization internally
+        offload_device = mm.unet_offload_device()
+        dtype = torch.float16 if device.type != "cpu" else torch.float32
+
+        # Load model to offload device (CPU) initially
         model = AutoModelForCausalLM.from_pretrained(
             repo,
             trust_remote_code=True,
-            dtype=torch.float16 if device != "cpu" else torch.float32,
-            device_map={"": device},
-        )
-
-        # Wrap and register with ComfyUI's model management
-        load_dev = torch.device(device)
-        offload_dev = torch.device("cpu")
-        comfy_wrapper = MoondreamModelWrapper(model, load_dev, offload_dev)
-        comfy.model_management.load_models_gpu([comfy_wrapper])
+            torch_dtype=dtype,
+        ).to(offload_device)
 
         # Create a wrapper that mimics the moondream client interface
-        local_client = LocalMoondreamModel(model, device)
+        local_client = LocalMoondreamModel(model, device, offload_device)
 
         wrapper = MoondreamClientWrapper(
             client=local_client,
-            comfy_model=comfy_wrapper,
             has_api_key=False,
             is_local=True,
-            device=device,
+            device=str(device),
         )
-
-        # Cache if requested
-        if keep_loaded:
-            _model_cache[cache_key] = wrapper
 
         return (wrapper,)
 
@@ -171,29 +142,51 @@ class MoondreamLoader:
 class LocalMoondreamModel:
     """Wrapper to make a local Transformers model have the same interface as md.Client."""
 
-    def __init__(self, model, device: str):
+    def __init__(self, model, device: torch.device, offload_device: torch.device):
         self.model = model
         self.device = device
+        self.offload_device = offload_device
+
+    def _move_to_device(self):
+        """Move model to inference device before running."""
+        self.model.to(self.device)
+
+    def _offload(self):
+        """Move model back to offload device and clear cache."""
+        self.model.to(self.offload_device)
+        mm.soft_empty_cache()
 
     def caption(self, image, length: str = "normal", **kwargs):
         """Generate a caption for the image."""
-        # Moondream model has a built-in caption method
-        return self.model.caption(image, length=length)
+        self._move_to_device()
+        try:
+            return self.model.caption(image, length=length)
+        finally:
+            self._offload()
 
     def query(self, image, question: str, **kwargs):
         """Answer a question about the image."""
-        # Moondream model has a built-in query method
-        return self.model.query(image, question)
+        self._move_to_device()
+        try:
+            return self.model.query(image, question)
+        finally:
+            self._offload()
 
     def detect(self, image, target: str):
         """Detect objects in the image."""
-        # Moondream model has a built-in detect method
-        return self.model.detect(image, target)
+        self._move_to_device()
+        try:
+            return self.model.detect(image, target)
+        finally:
+            self._offload()
 
     def point(self, image, target: str):
         """Find points for objects in the image."""
-        # Moondream model has a built-in point method
-        return self.model.point(image, target)
+        self._move_to_device()
+        try:
+            return self.model.point(image, target)
+        finally:
+            self._offload()
 
 
 class MoondreamSettings:
@@ -232,5 +225,4 @@ class MoondreamSettings:
             "max_tokens": max_tokens,
         }
         return (settings,)
-
 
