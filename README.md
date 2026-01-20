@@ -24,3 +24,7 @@ Features:
 - Point: Put points on things with a prompt, use their locations in your workflow (untested, note that you have to get it out of the JSON string somehow still)
 - Detect: Create bounding box masks and crops with one node
 - Segment: Like Detect, but it generates a segmentation mask (Cloud API only, half-functional)
+
+Installation:
+
+- Don't
