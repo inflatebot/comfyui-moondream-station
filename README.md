@@ -9,7 +9,7 @@ What's been tested and seems to work:
 - All inference features besides Point (not properly tested) and Segment (which is half-functional, see below)
 
 What has been tested and does NOT work:
-- *Inline unloading;* the nodes don't properly integrate with ComfyUI's memory management and will NOT be unloaded as intended right now
+- Nothing right now!!
 
 What has not been tested:
 - Loading quantized checkpoints (I see no reason why this Shouldn't work but Transformers is full of surprises as it turns out)
