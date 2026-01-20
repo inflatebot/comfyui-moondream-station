@@ -1,0 +1,28 @@
+[project]
+name = "comfyui-moondream-station"
+version = "0.1.0"
+description = "ComfyUI custom nodes for Moondream 3 vision-language model"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "moondream>=0.1.0",
+    "transformers>=4.51.0",
+    "torch>=2.0.0",
+    "Pillow>=9.0.0",
+    "numpy>=1.20.0",
+    "svgelements>=1.9.0",
+    "accelerate>=0.20.0",
+]
+
+[project.urls]
+Repository = "https://github.com/asriel/comfyui-moondream-station"
+
+[tool.comfy]
+PublisherId = "asriel"
+DisplayName = "Moondream Station"
+Icon = ""
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
